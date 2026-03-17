@@ -1,5 +1,5 @@
 // lib/api.ts
-const BASE_URL = "https://nxvcfappp-e602fcd9f171.herokuapp.com"; // hardcoded backend URL
+const BASE_URL = "https://nx-md-bot-65f116873bb7.herokuapp.com"; // hardcoded backend URL
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
