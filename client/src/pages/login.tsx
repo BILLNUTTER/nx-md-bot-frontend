@@ -11,7 +11,7 @@ import { setToken } from "@/lib/auth";
 import { loginSchema, type LoginInput } from "@shared/schema";
 import { SiWhatsapp } from "react-icons/si";
 import { Loader2, ArrowLeft } from "lucide-react";
-import { apiFetch } from "@/lib/api"; // centralized backend calls
+import { apiFetch } from "@/lib/api";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -27,20 +27,26 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // All backend calls go through apiFetch
+      // Call backend login
       const data = await apiFetch("/api/auth/login", {
         method: "POST",
         body: JSON.stringify(values),
       });
 
+      // Store JWT
       setToken(data.token);
 
+      // Show toast
       toast({
         title: "Welcome back!",
         description: `Signed in as ${data.user.username}`,
       });
 
-      setLocation("/dashboard");
+      // Optional: small delay to let toast appear before redirect
+      setTimeout(() => {
+        setLocation("/dashboard");
+      }, 100);
+
     } catch (err: any) {
       toast({
         title: "Login failed",
@@ -111,7 +117,12 @@ export default function LoginPage() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={loading} data-testid="button-login">
+                <Button
+                  type="submit"
+                  className="w-full flex items-center justify-center"
+                  disabled={loading}
+                  data-testid="button-login"
+                >
                   {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   Sign In
                 </Button>
