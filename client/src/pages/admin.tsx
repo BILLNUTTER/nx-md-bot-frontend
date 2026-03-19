@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useQuery, useMutation, QueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +16,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { setAdminKey, getAdminKey, removeAdminKey } from "@/lib/auth";
+import { queryClient } from "@/lib/queryClient";
 import { SiWhatsapp } from "react-icons/si";
 import {
   Users,
   DollarSign,
   Smartphone,
+  Activity,
   Shield,
   Settings,
   LogOut,
@@ -28,24 +31,11 @@ import {
   CheckCircle2,
   XCircle,
   Ban,
-  Crown,
+  Bot,
   CreditCard,
+  Crown,
   Trash2,
 } from "lucide-react";
-
-const BACKEND_URL = "https://nx-md-bot-65f116873bb7.herokuapp.com";
-
-function getAdminKey(): string | null {
-  return localStorage.getItem("nxmd_admin_key");
-}
-
-function setAdminKey(key: string) {
-  localStorage.setItem("nxmd_admin_key", key);
-}
-
-function removeAdminKey() {
-  localStorage.removeItem("nxmd_admin_key");
-}
 
 export default function AdminPage() {
   const [, setLocation] = useLocation();
@@ -66,65 +56,21 @@ export default function AdminPage() {
     if (!hasAdminParam) setLocation("/");
   }, [hasAdminParam]);
 
-  // -------------------- DIRECT FETCH HELPERS --------------------
-  async function fetchWithAdmin(url: string) {
-    const res = await fetch(`${BACKEND_URL}${url}`, {
-      headers: { "x-admin-key": getAdminKey() || "" },
-    });
-    if (res.status === 403) {
-      setIsAuthed(false);
-      removeAdminKey();
-      throw new Error("Invalid admin key");
-    }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(err.message || "Request failed");
-    }
-    return res.json();
-  }
-
-  async function patchWithAdmin(url: string, data: any) {
-    const res = await fetch(`${BACKEND_URL}${url}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-admin-key": getAdminKey() || "" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(err.message || "Request failed");
-    }
-    return res.json();
-  }
-
-  async function deleteWithAdmin(url: string) {
-    const res = await fetch(`${BACKEND_URL}${url}`, {
-      method: "DELETE",
-      headers: { "x-admin-key": getAdminKey() || "" },
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(err.message || "Request failed");
-    }
-    return res.json();
-  }
-
   async function handleAdminLogin() {
     if (!adminKeyInput.trim()) return;
     const key = adminKeyInput.trim();
     try {
-      await fetch(`${BACKEND_URL}/api/admin/stats`, {
+      const res = await fetch("/api/admin/stats", {
         headers: { "x-admin-key": key },
-      }).then((r) => {
-        if (r.status === 403) throw new Error("Forbidden");
       });
+      if (res.status === 403) {
+        toast({ title: "Invalid admin key", description: "Wrong key — please try again.", variant: "destructive" });
+        return;
+      }
       setAdminKey(key);
       setIsAuthed(true);
-    } catch (err: any) {
-      if (err.message === "Forbidden") {
-        toast({ title: "Invalid admin key", description: "Wrong key — try again.", variant: "destructive" });
-      } else {
-        toast({ title: "Connection error", description: "Could not reach the server.", variant: "destructive" });
-      }
+    } catch {
+      toast({ title: "Connection error", description: "Could not reach the server.", variant: "destructive" });
     }
   }
 
@@ -134,8 +80,40 @@ export default function AdminPage() {
     setLocation("/");
   }
 
-  // -------------------- QUERIES --------------------
-  const queryClient = new QueryClient();
+  const fetchWithAdmin = async (url: string) => {
+    const key = getAdminKey();
+    const res = await fetch(url, { headers: { "x-admin-key": key || "" } });
+    if (!res.ok) {
+      if (res.status === 403) {
+        setIsAuthed(false);
+        removeAdminKey();
+        throw new Error("Invalid admin key");
+      }
+      throw new Error("Request failed");
+    }
+    return res.json();
+  };
+
+  const patchWithAdmin = async (url: string, data: any) => {
+    const key = getAdminKey();
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-key": key || "" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Request failed");
+    return res.json();
+  };
+
+  const deleteWithAdmin = async (url: string) => {
+    const key = getAdminKey();
+    const res = await fetch(url, {
+      method: "DELETE",
+      headers: { "x-admin-key": key || "" },
+    });
+    if (!res.ok) throw new Error("Request failed");
+    return res.json();
+  };
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/admin/stats"],
@@ -161,13 +139,16 @@ export default function AdminPage() {
     enabled: isAuthed,
   });
 
-  // -------------------- MUTATIONS --------------------
   const updateUser = useMutation({
-    mutationFn: ({ userId, data }: { userId: string; data: any }) => patchWithAdmin(`/api/admin/user/${userId}`, data),
+    mutationFn: ({ userId, data }: { userId: string; data: any }) =>
+      patchWithAdmin(`/api/admin/user/${userId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({ title: "User updated" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -184,7 +165,10 @@ export default function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-      toast({ title: "User deleted" });
+      toast({ title: "User deleted", description: "User and all associated data removed." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -195,25 +179,34 @@ export default function AdminPage() {
     }
   }, [adminSettings]);
 
-  // -------------------- RENDER --------------------
   if (!isAuthed) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md border-border/50">
           <CardHeader className="text-center">
-            <Shield className="w-7 h-7 mb-4 text-destructive" />
+            <div className="flex justify-center mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
+                <Shield className="text-destructive w-7 h-7" />
+              </div>
+            </div>
             <CardTitle className="text-2xl">Admin Access</CardTitle>
             <CardDescription>Enter your admin key to continue</CardDescription>
           </CardHeader>
           <CardContent>
-            <Input
-              type="password"
-              placeholder="Admin key"
-              value={adminKeyInput}
-              onChange={(e) => setAdminKeyInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
-            />
-            <Button className="w-full mt-4" onClick={handleAdminLogin}>Access Dashboard</Button>
+            <div className="space-y-4">
+              <Input
+                type="password"
+                placeholder="Admin key"
+                value={adminKeyInput}
+                onChange={(e) => setAdminKeyInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
+                data-testid="input-admin-key"
+              />
+              <Button className="w-full" onClick={handleAdminLogin} data-testid="button-admin-login">
+                <Shield className="w-4 h-4 mr-2" />
+                Access Dashboard
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
