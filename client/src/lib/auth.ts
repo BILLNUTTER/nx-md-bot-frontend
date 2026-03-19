@@ -40,12 +40,25 @@ export async function authFetch(url: string, options: RequestInit = {}) {
   if (adminKey) headers["x-admin-key"] = adminKey;
 
   const res = await fetch(url, { ...options, headers });
+
+  let json: any;
+  try {
+    json = await res.json();
+  } catch {
+    json = null;
+  }
+
   if (res.status === 401) {
     removeToken();
     window.location.href = "/login";
-    throw new Error("Unauthorized");
+    throw new Error(json?.message || "Unauthorized");
   }
-  return res;
+
+  if (!res.ok) {
+    throw new Error(json?.message || res.statusText || "Request failed");
+  }
+
+  return json; // ✅ always returns JSON
 }
 
 export async function authGet(url: string) {
