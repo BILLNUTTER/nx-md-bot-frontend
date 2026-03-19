@@ -18,12 +18,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { setAdminKey, getAdminKey, removeAdminKey } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
-import { SiWhatsapp } from "react-icons/si";
 import {
   Users,
   DollarSign,
   Smartphone,
-  Activity,
   Shield,
   Settings,
   LogOut,
@@ -31,11 +29,13 @@ import {
   CheckCircle2,
   XCircle,
   Ban,
-  Bot,
   CreditCard,
   Crown,
   Trash2,
 } from "lucide-react";
+
+// 🔹 Add backend URL at the top
+const BASE_URL = "https://nx-md-bot-65f116873bb7.herokuapp.com";
 
 export default function AdminPage() {
   const [, setLocation] = useLocation();
@@ -60,7 +60,7 @@ export default function AdminPage() {
     if (!adminKeyInput.trim()) return;
     const key = adminKeyInput.trim();
     try {
-      const res = await fetch("/api/admin/stats", {
+      const res = await fetch(`${BASE_URL}/api/admin/stats`, {
         headers: { "x-admin-key": key },
       });
       if (res.status === 403) {
@@ -80,9 +80,9 @@ export default function AdminPage() {
     setLocation("/");
   }
 
-  const fetchWithAdmin = async (url: string) => {
+  const fetchWithAdmin = async (path: string) => {
     const key = getAdminKey();
-    const res = await fetch(url, { headers: { "x-admin-key": key || "" } });
+    const res = await fetch(`${BASE_URL}${path}`, { headers: { "x-admin-key": key || "" } });
     if (!res.ok) {
       if (res.status === 403) {
         setIsAuthed(false);
@@ -94,9 +94,9 @@ export default function AdminPage() {
     return res.json();
   };
 
-  const patchWithAdmin = async (url: string, data: any) => {
+  const patchWithAdmin = async (path: string, data: any) => {
     const key = getAdminKey();
-    const res = await fetch(url, {
+    const res = await fetch(`${BASE_URL}${path}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", "x-admin-key": key || "" },
       body: JSON.stringify(data),
@@ -105,9 +105,9 @@ export default function AdminPage() {
     return res.json();
   };
 
-  const deleteWithAdmin = async (url: string) => {
+  const deleteWithAdmin = async (path: string) => {
     const key = getAdminKey();
-    const res = await fetch(url, {
+    const res = await fetch(`${BASE_URL}${path}`, {
       method: "DELETE",
       headers: { "x-admin-key": key || "" },
     });
@@ -115,103 +115,110 @@ export default function AdminPage() {
     return res.json();
   };
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/admin/stats"],
-    queryFn: () => fetchWithAdmin("/api/admin/stats"),
-    enabled: isAuthed,
-  });
+// Queries
+const { data: stats, isLoading: statsLoading } = useQuery({
+  queryKey: [`${BASE_URL}/api/admin/stats`],
+  queryFn: () => fetchWithAdmin("/api/admin/stats"),
+  enabled: isAuthed,
+});
 
-  const { data: users, isLoading: usersLoading } = useQuery({
-    queryKey: ["/api/admin/users"],
-    queryFn: () => fetchWithAdmin("/api/admin/users"),
-    enabled: isAuthed,
-  });
+const { data: users, isLoading: usersLoading } = useQuery({
+  queryKey: [`${BASE_URL}/api/admin/users`],
+  queryFn: () => fetchWithAdmin("/api/admin/users"),
+  enabled: isAuthed,
+});
 
-  const { data: adminSettings } = useQuery({
-    queryKey: ["/api/settings"],
-    queryFn: () => fetchWithAdmin("/api/settings"),
-    enabled: isAuthed,
-  });
+const { data: adminSettings } = useQuery({
+  queryKey: [`${BASE_URL}/api/settings`],
+  queryFn: () => fetchWithAdmin("/api/settings"),
+  enabled: isAuthed,
+});
 
-  const { data: adminPayments } = useQuery({
-    queryKey: ["/api/admin/payments"],
-    queryFn: () => fetchWithAdmin("/api/admin/payments"),
-    enabled: isAuthed,
-  });
+const { data: adminPayments } = useQuery({
+  queryKey: [`${BASE_URL}/api/admin/payments`],
+  queryFn: () => fetchWithAdmin("/api/admin/payments"),
+  enabled: isAuthed,
+});
 
-  const updateUser = useMutation({
-    mutationFn: ({ userId, data }: { userId: string; data: any }) =>
-      patchWithAdmin(`/api/admin/user/${userId}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-      toast({ title: "User updated" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+// Mutations
+const updateUser = useMutation({
+  mutationFn: ({ userId, data }: { userId: string; data: any }) =>
+    patchWithAdmin(`/api/admin/user/${userId}`, data),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: [`${BASE_URL}/api/admin/users`] });
+    queryClient.invalidateQueries({ queryKey: [`${BASE_URL}/api/admin/stats`] });
+    toast({ title: "User updated" });
+  },
+  onError: (err: any) => {
+    toast({ title: "Error", description: err.message, variant: "destructive" });
+  },
+});
 
-  const updateSettings = useMutation({
-    mutationFn: (data: any) => patchWithAdmin("/api/admin/settings", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      toast({ title: "Settings updated" });
-    },
-  });
+const updateSettings = useMutation({
+  mutationFn: (data: any) => patchWithAdmin("/api/admin/settings", data),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: [`${BASE_URL}/api/settings`] });
+    toast({ title: "Settings updated" });
+  },
+});
 
-  const deleteUser = useMutation({
-    mutationFn: (userId: string) => deleteWithAdmin(`/api/admin/user/${userId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-      toast({ title: "User deleted", description: "User and all associated data removed." });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+const deleteUser = useMutation({
+  mutationFn: (userId: string) => deleteWithAdmin(`/api/admin/user/${userId}`),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: [`${BASE_URL}/api/admin/users`] });
+    queryClient.invalidateQueries({ queryKey: [`${BASE_URL}/api/admin/stats`] });
+    toast({ title: "User deleted", description: "User and all associated data removed." });
+  },
+  onError: (err: any) => {
+    toast({ title: "Error", description: err.message, variant: "destructive" });
+  },
+});
 
-  useEffect(() => {
-    if (adminSettings) {
-      setPriceInput(String(adminSettings.subscriptionPrice || 70));
-      setDaysInput(String(adminSettings.subscriptionDays || 30));
-    }
-  }, [adminSettings]);
-
-  if (!isAuthed) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-border/50">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
-                <Shield className="text-destructive w-7 h-7" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl">Admin Access</CardTitle>
-            <CardDescription>Enter your admin key to continue</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Input
-                type="password"
-                placeholder="Admin key"
-                value={adminKeyInput}
-                onChange={(e) => setAdminKeyInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
-                data-testid="input-admin-key"
-              />
-              <Button className="w-full" onClick={handleAdminLogin} data-testid="button-admin-login">
-                <Shield className="w-4 h-4 mr-2" />
-                Access Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+// Sync inputs with settings
+useEffect(() => {
+  if (adminSettings) {
+    setPriceInput(String(adminSettings.subscriptionPrice || 70));
+    setDaysInput(String(adminSettings.subscriptionDays || 30));
   }
+}, [adminSettings]);
+
+// Render login if not authenticated
+if (!isAuthed) {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-border/50">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
+              <Shield className="text-destructive w-7 h-7" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl">Admin Access</CardTitle>
+          <CardDescription>Enter your admin key to continue</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Input
+              type="password"
+              placeholder="Admin key"
+              value={adminKeyInput}
+              onChange={(e) => setAdminKeyInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
+              data-testid="input-admin-key"
+            />
+            <Button className="w-full" onClick={handleAdminLogin} data-testid="button-admin-login">
+              <Shield className="w-4 h-4 mr-2" />
+              Access Dashboard
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ✅ From here you can continue rendering the dashboard tabs, tables, etc.
+// All fetches now automatically go through BASE_URL + your endpoints
 
 return (
     <div className="min-h-screen bg-background">
