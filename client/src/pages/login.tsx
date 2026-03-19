@@ -24,40 +24,38 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: LoginInput) {
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      // Call backend login
-      const data = await apiFetch("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify(values),
-      });
+  try {
+    const data = await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(values),
+    });
 
-      // Store JWT
-      setToken(data.token);
+    // Pick token correctly
+    const token = data.token || data.accessToken || data.jwt;
+    if (!token) throw new Error("Login failed: no token returned");
 
-      // Show toast
-      toast({
-        title: "Welcome back!",
-        description: `Signed in as ${data.user.username}`,
-      });
+    setToken(token); // save token for authenticated API calls
 
-      // Optional: small delay to let toast appear before redirect
-      setTimeout(() => {
-        setLocation("/dashboard");
-      }, 100);
+    toast({
+      title: "Welcome back!",
+      description: `Signed in as ${data.user.username}`,
+    });
 
-    } catch (err: any) {
-      toast({
-        title: "Login failed",
-        description: err.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    // Redirect after toast
+    setTimeout(() => setLocation("/dashboard"), 100);
+
+  } catch (err: any) {
+    toast({
+      title: "Login failed",
+      description: err.message,
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
   }
-
+}
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
